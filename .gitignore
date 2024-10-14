@@ -1,0 +1,6 @@
+.DS_Store
+.idea
+*.log
+testing/
+build/
+igraph-0.10.13/
