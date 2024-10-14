@@ -1,0 +1,4 @@
+-Wall
+-Wextra
+-no-pie
+-I/usr/local/include/igraph
