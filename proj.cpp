@@ -1,5 +1,3 @@
-#include "igraph_interface.h"
-#include "igraph_iterators.h"
 #include <igraph.h>
 #include <iostream>
 #include <random>
@@ -18,41 +16,36 @@ public:
   std::unordered_set<igraph_integer_t> infected;
   ~InfectGraph() { igraph_destroy(graph); }
 };
-class vit_t {
-public:
-  igraph_vs_t vit;
-  ~vit_t() { igraph_vs_destroy(&vit); };
-};
+
 void infect(InfectGraph *G, double p_i) {
-  igraph_vit_t neighbours;
-  igraph_vs_t vs;
+  igraph_vector_int_t neigh;
+  igraph_vector_int_init(&neigh, 0);
   for (auto node : G->infected) {
-    igraph_vs_adj(&vs, node, IGRAPH_ALL);
-    igraph_vit_create(G->graph, vs, &neighbours);
-    while (!IGRAPH_VIT_END(neighbours)) {
-      igraph_integer_t n{IGRAPH_VIT_GET(neighbours)};
-      // printf("%" IGRAPH_PRId " ", n);
+    igraph_neighbors(G->graph, &neigh, node, IGRAPH_ALL);
+    igraph_integer_t n_size = igraph_vector_int_size(&neigh);
+    for (igraph_integer_t i = 0; i < n_size; i++) {
       double r = r_number();
-      // printf("%g\n", r);
       if (r < p_i) {
-        G->infected.insert(n);
+        G->infected.insert(VECTOR(neigh)[i]);
       }
-      IGRAPH_VIT_NEXT(neighbours);
     }
   }
-  igraph_vit_destroy(&neighbours);
-  igraph_vs_destroy(&vs);
+  igraph_vector_int_destroy(&neigh);
 }
 
 int main() {
-  igraph_t g;
+  igraph_t seed;
   igraph_integer_t n{5};
-  igraph_full(&g, n, NULL, NULL);
-  std::unordered_set<igraph_integer_t> infected{0};
+  igraph_full(&seed, n, NULL, NULL);
+  igraph_t g;
+  igraph_barabasi_game(&g, 10, 1.0, 3, NULL, true, 0, false,
+                       IGRAPH_BARABASI_PSUMTREE, &seed);
+  std::unordered_set<igraph_integer_t> infected{9};
   InfectGraph G{&g, infected};
   infect(&G, 0.5);
   for (auto x : G.infected) {
     printf("%" IGRAPH_PRId " ", x);
   }
+  igraph_destroy(&seed);
   return 0;
 }
