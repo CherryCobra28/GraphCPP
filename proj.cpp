@@ -1,8 +1,13 @@
+#include "igraph_interface.h"
+#include "igraph_types.h"
 #include <igraph.h>
 #include <iostream>
 #include <memory>
 #include <random>
+#include <ranges>
+#include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 template <typename T> void destroy(T *t);
 void destroy(igraph_vector_int_t *v) { igraph_vector_int_destroy(v); }
@@ -26,7 +31,22 @@ double r_number() {
 class InfectGraph {
 public:
   igraph_t *graph;
+  std::vector<igraph_integer_t> nodes;
   std::unordered_set<igraph_integer_t> infected;
+  std::unordered_map<igraph_integer_t, int> days_inf;
+  InfectGraph(igraph_t *g)
+      : graph{g}, nodes(igraph_vcount(g)), infected{}, days_inf{} {
+    infected.insert(0);
+
+    std::iota(nodes.begin(), nodes.end(), 0);
+    std::vector<int> zeros(nodes.size(), 0);
+    if (nodes.size() != zeros.size()) {
+      throw "ERROR";
+    }
+    for (size_t i = 0; i < nodes.size(); ++i) {
+      days_inf[nodes[i]] = zeros[i];
+    }
+  }
   ~InfectGraph() { igraph_destroy(graph); }
 };
 
@@ -51,15 +71,24 @@ int main() {
   igraph_t seed;
   auto seed_p = igraph_make_uni_ptr(&seed);
   igraph_integer_t n{5};
-  igraph_full(seed_p.get(), n, NULL, NULL);
+  igraph_full(seed_p.get(), n, false, false);
   igraph_t g;
   igraph_barabasi_game(&g, 10, 1.0, 3, NULL, true, 0, false,
                        IGRAPH_BARABASI_PSUMTREE, &seed);
-  std::unordered_set<igraph_integer_t> infected{9};
-  InfectGraph G{&g, infected};
+  InfectGraph G{&g};
   infect(&G, 0.5);
   for (auto x : G.infected) {
-    printf("%" IGRAPH_PRId " ", x);
+    std::cout << x << " ";
+  }
+  printf("\n");
+  printf("----------------- \n");
+  G.days_inf.at(6) = 5;
+  for (auto [node, day] : G.days_inf) {
+    std::cout << node << " => " << day << "\n";
+  }
+  printf("----------\n");
+  for (auto x : G.nodes) {
+    std::cout << x << " ";
   }
   return 0;
 }
