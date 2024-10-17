@@ -1,5 +1,18 @@
-#include "igraph_interface.h"
-#include "igraph_types.h"
+/**
+ * NOTE TO SELF:
+ * FIND OUT WHY IGRAPH_NEW<IGRAPH_T> CAUSES A MEMORY LEAK IF IT IS NOT
+ * STD::MOVED\
+ * I.E.: NO LEAK:\
+ * igraph_t s;\
+ * auto s_p = igraph_make_uni_ptr(&s);\
+ * NO LEAK (but compiler warning):
+ * auto s_p =std::move(igraph_new<igraph_t>());\
+ * LEAK:\
+ * auto s_p = igraph_new<igraph_t>();\
+ *
+ *
+ */
+#include "igraph_datatype.h"
 #include <igraph.h>
 #include <iostream>
 #include <memory>
@@ -9,7 +22,19 @@
 #include <unordered_set>
 #include <vector>
 
-template <typename T> void destroy(T *t);
+// Please dont use this
+#define IGRAPH_NEW(X)                                                          \
+                                                                               \
+  auto __x = igraph_new<igraph_t>();                                           \
+  auto X = std::move(__x);
+
+template <typename T> struct always_false {
+  enum { value = false };
+};
+
+template <typename T> void destroy(T *t) {
+  static_assert(always_false<T>::value, "DESTROY NOT IMPLEMENETED FOR TYPE!");
+};
 void destroy(igraph_vector_int_t *v) { igraph_vector_int_destroy(v); }
 void destroy(igraph_t *g) { igraph_destroy(g); }
 template <typename T> struct Destroyer {
@@ -19,6 +44,19 @@ template <typename T>
 std::unique_ptr<T, Destroyer<T>> igraph_make_uni_ptr(T *t) {
   return std::unique_ptr<T, Destroyer<T>>(t);
 }
+
+template <typename T> std::unique_ptr<T, Destroyer<T>> igraph_new() {
+  T v;
+  auto v_ptr = igraph_make_uni_ptr(&v);
+  return v_ptr;
+}
+
+// std::unique_ptr<igraph_t, Destroyer<igraph_t>> igraph_new() {
+//   igraph_t v;
+//   auto v_ptr = igraph_make_uni_ptr(&v);
+//   auto r_ptr = std::move(v_ptr);
+//   return r_ptr;
+// }
 
 double r_number() {
   std::random_device red;
@@ -41,7 +79,7 @@ public:
     std::iota(nodes.begin(), nodes.end(), 0);
     std::vector<int> zeros(nodes.size(), 0);
     if (nodes.size() != zeros.size()) {
-      throw "ERROR";
+      throw "ERROR: Vectors are incorrect sizes!";
     }
     for (size_t i = 0; i < nodes.size(); ++i) {
       days_inf[nodes[i]] = zeros[i];
@@ -51,8 +89,7 @@ public:
 };
 
 void infect(InfectGraph *G, double p_i) {
-  igraph_vector_int_t neigh;
-  auto neigh_p = igraph_make_uni_ptr(&neigh);
+  auto neigh_p = igraph_new<igraph_vector_int_t>();
   igraph_vector_int_init(neigh_p.get(), 0);
   for (auto node : G->infected) {
     igraph_neighbors(G->graph, neigh_p.get(), node, IGRAPH_ALL);
@@ -68,13 +105,14 @@ void infect(InfectGraph *G, double p_i) {
 }
 
 int main() {
+  // IGRAPH_NEW(seed_p);
   igraph_t seed;
   auto seed_p = igraph_make_uni_ptr(&seed);
   igraph_integer_t n{5};
   igraph_full(seed_p.get(), n, false, false);
   igraph_t g;
   igraph_barabasi_game(&g, 10, 1.0, 3, NULL, true, 0, false,
-                       IGRAPH_BARABASI_PSUMTREE, &seed);
+                       IGRAPH_BARABASI_PSUMTREE, seed_p.get());
   InfectGraph G{&g};
   infect(&G, 0.5);
   for (auto x : G.infected) {
