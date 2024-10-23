@@ -1,0 +1,4 @@
+#+title: Sterch
+
+* TODO Stretch Goals
+Create a C++ iterator around igraph vectors and graphs.
